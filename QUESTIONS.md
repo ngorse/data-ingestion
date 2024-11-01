@@ -1,4 +1,6 @@
-Is the program expected to run once to process a file and fill up the database, or should we consider this is a permanent running process that will receive data.
+Is the program expected to be initiated by the user to process a data file and fill up the database, or should we consider this is a permanent running process that could receive data at any time.
+
+In case of a new file, I assume the data should be appended to the current database. Do you confirm?
 
 I assume the database should be persistent, i.e. not reinitialized when we restart the docker. Can you please confirm?
 
