@@ -1,6 +1,7 @@
 
 [ ] database
-    [ ] schema
+    [x] raw data analysis
+    [x] schema
     [ ] initialization script
 
 [ ] reduced version of the datafile
