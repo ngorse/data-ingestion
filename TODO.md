@@ -2,14 +2,16 @@
 [ ] database
     [x] raw data analysis
     [x] schema
-    [ ] initialization script
+    [x] initialization script
 
-[ ] reduced version of the datafile
+[x] reduced version of the datafile
 
-[ ] java framework
-    [ ] data loading 
-    [ ] data writing
+[ ] java framework working with reduced version
+    [x] data loading 
+    [x] data writing 
     [ ] unit tests
+
+[ ] java framework working with full version
 
 [ ] containerization
     [ ] docker
