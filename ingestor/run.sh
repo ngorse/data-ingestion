@@ -1,9 +1,9 @@
 #!/bin/bash
 
-CSVFILE="../../data/raw_product_data.100.csv"
+export INGESTOR_DB_CSV_INPUT="../../data/raw_product_data.100.csv"
 
 if [ ${#} -gt 0 ]; then
-    CSVFILE=${1}
+    export INGESTOR_DB_CSV_INPUT=${1}
     shift
 else
     echo "Missing csv file path, using ${CSVFILE} as default"
@@ -14,5 +14,5 @@ export INGESTOR_DB_USER="nico"
 export INGESTOR_DB_PASSWORD=""
 export INGESTOR_DB_AUTOCOMMIT=true
 
-mvn exec:java -e -Dexec.mainClass="ca.ulex.Ingestor" -Dexec.args="${CSVFILE} ${*}"
+mvn exec:java -e -Dexec.mainClass="ca.ulex.Ingestor" -Dexec.args="${*}"
 

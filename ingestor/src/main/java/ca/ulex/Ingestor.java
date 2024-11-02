@@ -20,12 +20,13 @@ public class Ingestor
     private static final String URL = System.getenv("INGESTOR_DB_URL");
     private static final String USER = System.getenv("INGESTOR_DB_USER");
     private static final String PASSWORD = System.getenv("INGESTOR_DB_PASSWORD");
+    private static final String CSV_FILE = System.getenv("INGESTOR_DB_CSV_INPUT");
     // Set to true for debugging, false otherwise
     private static final boolean AUTO_COMMIT = (Boolean.parseBoolean(System.getenv("INGESTOR_DB_AUTOCOMMIT")));
 
     public static void main(String[] args)
     {
-        String csvFilePath = getCSVFilePathOrExit(args);
+        String csvFilePath = getCSVFilePathOrExit();
 
         try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD)) {
             connection.setAutoCommit(AUTO_COMMIT);
@@ -40,20 +41,20 @@ public class Ingestor
         }
     }
 
-    private static String getCSVFilePathOrExit(String[] args)
+    private static String getCSVFilePathOrExit()
     {
-        if (args.length != 1) {
-            System.err.println("Usage: Ingestor <path to csv file>");
+        if (CSV_FILE.isEmpty()) {
+            System.err.println("ERROR: INGESTOR_DB_CSV_FILE env variable is not set");
             System.exit(1);
         }
 
-        File file = new File(args[0]);
+        File file = new File(CSV_FILE);
         if (!file.exists() || !file.isFile()) {
-            System.err.println("Error: invalid file: " + args[0]);
+            System.err.println("ERROR: invalid file: " + CSV_FILE);
             System.exit(1);
         }
 
-        return args[0];
+        return CSV_FILE;
     }
 
     private static int ingestDataFromCSV(String csvFilePath, Connection conn) {
