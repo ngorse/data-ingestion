@@ -1,4 +1,4 @@
 #!/bin/bash
 
-psql < db-reset.sql
+psql < `dirname ${0}`/db-reset.sql
 
