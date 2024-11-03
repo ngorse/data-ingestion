@@ -76,17 +76,16 @@ public class Ingestor
                 String productId = line[1];
                 String sizeLabel = line[2];
                 String productName = line[3];
-                String brandName = line[4];
+                String brand = line[4];
                 String color = line[5];
                 String ageGroup = line[6];
                 String gender = line[7];
                 String sizeType = line[8];
                 String productType = line[9];
 
-                int dbBrandId = insertBrand(conn, brandIdMap, brandName, csvLine);
-                int dbProductId = insertProduct(conn, productIdMap, dbBrandId, productId, csvLine);
-                int dbVariantId = insertVariant(conn, variantIdMap, dbProductId, variantId, ageGroup, gender, sizeType, csvLine);
-                insertLocalizedMeta(conn, dbVariantId, sizeLabel, productName, color, productType, csvLine);
+                int dbProductId = insertProduct(conn, productIdMap, productId, csvLine);
+                int dbVariantId = insertVariant(conn, variantIdMap, dbProductId, variantId, sizeType, csvLine);
+                insertMetadata(conn, dbVariantId, sizeLabel, productName, brand, color, ageGroup, gender, productType, csvLine);
 
                 if (csvLine % 1000 == 0) {
                     System.out.print("\rIngested lines: " + Utils.decimalFormat.format(csvLine));
@@ -103,40 +102,17 @@ public class Ingestor
         return csvLine;
     }
 
-    private static int insertBrand(Connection conn, Map<String, Integer> brandIdMap, String brandName, int csvLine)
-    throws SQLException
-    {
-        if (brandIdMap.containsKey(brandName)) {
-            return brandIdMap.get(brandName);
-        }
-
-        String sql = "INSERT INTO brand (csv_line, name) VALUES (?, ?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, csvLine);
-        stmt.setString(2, brandName);
-        ResultSet rs = stmt.executeQuery();
-        if (rs.next()) {
-            int id = rs.getInt(1);
-            brandIdMap.put(brandName, id); // Store in map
-            return id;
-        }
-
-        // Should throw an exception here
-        return -1;
-    }
-
-    private static int insertProduct(Connection conn, Map<String, Integer> productIdMap, int brandId, String productId, int csvLine)
+    private static int insertProduct(Connection conn, Map<String, Integer> productIdMap, String productId, int csvLine)
     throws SQLException
     {
         if (productIdMap.containsKey(productId)) {
             return productIdMap.get(productId);
         }
 
-        String sql = "INSERT INTO product (id_brand, csv_line, product_id) VALUES (?, ?, ?) RETURNING id";
+        String sql = "INSERT INTO product (csv_line, product_id) VALUES (?, ?) RETURNING id";
         PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, brandId);
-        stmt.setInt(2, csvLine);
-        stmt.setString(3, productId);
+        stmt.setInt(1, csvLine);
+        stmt.setString(2, productId);
         ResultSet rs = stmt.executeQuery();
         if (rs.next()) {
             int id = rs.getInt(1);
@@ -148,17 +124,15 @@ public class Ingestor
         return -1;
     }
 
-    private static int insertVariant(Connection conn, Map<String, Integer> variantIdMap, int productId, String variantId, String ageGroup, String gender, String sizeType, int csvLine)
+    private static int insertVariant(Connection conn, Map<String, Integer> variantIdMap, int productId, String variantId, String sizeType, int csvLine)
     throws SQLException
     {
-        String sql = "INSERT INTO variant (id_product, csv_line, variant_id, age_group, gender, size_type) VALUES (?, ?, ?, ?, ?, ?) RETURNING id";
+        String sql = "INSERT INTO variant (id_product, csv_line, variant_id, size_type) VALUES (?, ?, ?, ?) RETURNING id";
         PreparedStatement stmt = conn.prepareStatement(sql);
         stmt.setInt(1, productId);
         stmt.setInt(2, csvLine);
         stmt.setString(3, variantId);
-        stmt.setString(4, ageGroup);
-        stmt.setString(5, gender);
-        stmt.setString(6, sizeType);
+        stmt.setString(4, sizeType);
         ResultSet rs = stmt.executeQuery();
         if (rs.next()) {
             return rs.getInt(1);
@@ -168,17 +142,20 @@ public class Ingestor
         return -1;
     }
 
-    private static void insertLocalizedMeta(Connection conn, int variantId, String sizeLabel, String productName, String color, String productType, int csvLine)
+    private static void insertMetadata(Connection conn, int variantId, String sizeLabel, String productName, String brand, String color, String ageGroup, String gender, String productType, int csvLine)
     throws SQLException
     {
-        String sql = "INSERT INTO localized_meta (id_variant, csv_line, size_label, product_name, color, product_type) VALUES (?, ?, ?, ?, ?, ?) RETURNING id";
+        String sql = "INSERT INTO metadata (id_variant, csv_line, size_label, product_name, brand, color, age_group, gender, product_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         PreparedStatement stmt = conn.prepareStatement(sql);
         stmt.setInt(1, variantId);
         stmt.setInt(2, csvLine);
         stmt.setString(3, sizeLabel);
         stmt.setString(4, productName);
-        stmt.setString(5, color);
-        stmt.setString(6, productType);
+        stmt.setString(5, brand);
+        stmt.setString(6, color);
+        stmt.setString(7, ageGroup);
+        stmt.setString(8, gender);
+        stmt.setString(9, productType);
         stmt.executeQuery();
     }
 }

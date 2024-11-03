@@ -19,12 +19,11 @@ public class DumpCSV
 
     public static void main(String[] args)
     {
-        String query = "SELECT v.variant_id, p.product_id, lm.size_label, lm.product_name, " +
-                "b.name AS brand, lm.color, v.age_group, v.gender, v.size_type, lm.product_type " +
-                "FROM variant v " +
-                "JOIN product p ON v.id_product = p.id " +
-                "JOIN brand b ON p.id_brand = b.id " +
-                "JOIN localized_meta lm ON v.id = lm.id_variant";
+        String query = "SELECT v.variant_id, p.product_id, lm.size_label, lm.product_name, lm.brand, " +
+                "lm.color, lm.age_group, lm.gender, v.size_type, lm.product_type " +
+                "FROM product p " +
+                "JOIN variant v ON v.id_product = p.id " +
+                "JOIN metadata lm ON lm.id_variant = v.id";
 
         try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
              BufferedWriter writer = new BufferedWriter(new FileWriter(CSV_FILE))) {
@@ -55,7 +54,7 @@ public class DumpCSV
                     writer.newLine(); // Move to the next line
                     linesDumped++;
                     if (linesDumped % 1000 == 0) {
-                        System.out.print("\rIngested lines: " + Utils.decimalFormat.format(linesDumped));
+                        System.out.print("\rDumped lines: " + Utils.decimalFormat.format(linesDumped));
                     }
                 }
 

@@ -1,4 +1,7 @@
-echo "select * from brand;" | psql -d inventory
-echo "select * from product;" | psql -d inventory
-echo "select * from variant;" | psql -d inventory
-echo "select * from localized_meta;" | psql -d inventory
+#!/bin/bash
+
+for t in product variant metadata; do
+    echo -e "\n${t}\n"
+    echo "select * from ${t}" | psql -d inventory
+done
+
