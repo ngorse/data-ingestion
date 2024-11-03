@@ -30,11 +30,13 @@ public class Ingestor
 
         try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD)) {
             connection.setAutoCommit(AUTO_COMMIT);
-            int lines = ingestDataFromCSV(csvFilePath, connection);
+            long startTime = System.currentTimeMillis();
+            int linesIngested = ingestDataFromCSV(csvFilePath, connection);
             if (!AUTO_COMMIT) {
                 connection.commit();
             }
-            System.out.println(lines + " lines inserted into the database");
+            System.out.println("\rLines ingested: " + linesIngested);
+            System.out.println("Total time    : " + Utils.formatTime(System.currentTimeMillis() - startTime));
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -86,7 +88,9 @@ public class Ingestor
                 int dbVariantId = insertVariant(conn, variantIdMap, dbProductId, variantId, ageGroup, gender, sizeType, csvLine);
                 insertLocalizedMeta(conn, dbVariantId, sizeLabel, productName, color, productType, csvLine);
 
-                System.out.println("Processed line " + csvLine);
+                if (csvLine % 1000 == 0) {
+                    System.out.print("\rIngested lines: " + Utils.decimalFormat.format(csvLine));
+                }
             }
 
             csvReader.close();

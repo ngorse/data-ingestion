@@ -32,6 +32,9 @@ public class DumpCSV
             writer.write("variant_id,product_id,size_label,product_name,brand,color,age_group,gender,size_type,product_type");
             writer.newLine();
 
+            long startTime = System.currentTimeMillis();
+            int linesDumped = 0;
+
             try (Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery(query)) {
 
@@ -50,7 +53,14 @@ public class DumpCSV
 
                     writer.write(row.toString());
                     writer.newLine(); // Move to the next line
+                    linesDumped++;
+                    if (linesDumped % 1000 == 0) {
+                        System.out.print("\rIngested lines: " + Utils.decimalFormat.format(linesDumped));
+                    }
                 }
+
+                System.out.println("\rLines dumped: " + linesDumped);
+                System.out.println("Total time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
             }
 
             System.out.println("Data dumped successfully to " + CSV_FILE);
