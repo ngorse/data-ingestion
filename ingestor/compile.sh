@@ -1,4 +1,4 @@
 #!/bin/bash
 
-mvn compile -X ${*}
+mvn compile ${*}
 

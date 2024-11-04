@@ -58,8 +58,8 @@ public class DumpCSV
                     }
                 }
 
-                System.out.println("\rLines dumped: " + linesDumped);
-                System.out.println("Total time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
+                System.out.println("\nTotal lines dumped: " + linesDumped);
+                System.out.println("Total elapsed time: " + Utils.formatTime(System.currentTimeMillis() - startTime));
             }
 
             System.out.println("Data dumped successfully to " + CSV_FILE);
