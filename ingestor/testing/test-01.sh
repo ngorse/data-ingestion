@@ -2,11 +2,14 @@
 
 function run_command()
 {
-    echo "    ${*}"
+    echo -n "    ${*}"
     ${*} >& /dev/null
     if [ $? -ne 0 ]; then
-        echo -e "\033[0;31mFAILURE executing {${*}}\033[0m"
+        echo -e " - \033[0;31mfailed\033[0m"
+        echo -e "\033[0;31mFAILURE\033[0m"
         exit 1
+    else
+        echo -e " - \033[0;32mpassed\033[0m"
     fi
 }
 
@@ -33,5 +36,5 @@ run_command ./ingest.sh ${INPUT}
 run_command ./dump.sh ${OUTPUT}
 run_command diff_results
 
-echo -e "\033[0;32mSuccess\033[0m"
+echo -e "\033[0;32mSUCCESS\033[0m"
 

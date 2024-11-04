@@ -23,7 +23,7 @@ CREATE TABLE product (
     product_id TEXT NOT NULL
 );
 
--- Create the brand table
+-- Create the csv_brand table
 CREATE TABLE csv_brand (
     id SERIAL PRIMARY KEY,
     id_product INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE,
@@ -31,18 +31,37 @@ CREATE TABLE csv_brand (
     name TEXT NOT NULL
 );
 
----- Create the variant table with a foreign key to product
---CREATE TABLE variant (
---    id SERIAL PRIMARY KEY,
---    id_product INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE,
---    csv_line INTEGER NOT NULL,
---    variant_id TEXT NOT NULL,
---    age_group TEXT,  -- Flag if there are inconsistencies during ingestion
---    gender TEXT,     -- Flag if there are inconsistencies during ingestion
---    size_type TEXT DEFAULT 'regular',  -- Default value since it is the same across the database
---    UNIQUE (variant_id)  -- Ensure each variant_id is unique
---);
---
+-- Create the variant table with a foreign key to product
+CREATE TABLE variant (
+    id SERIAL PRIMARY KEY,
+    id_product INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE,
+    variant_id TEXT NOT NULL,
+    age_group TEXT,
+    gender_male BOOLEAN,
+    gender_female BOOLEAN,
+    gender_unisex BOOLEAN,
+    size_type TEXT DEFAULT 'regular'
+);
+
+-- Create the csv_age_group table
+CREATE TABLE csv_age_group (
+    id SERIAL PRIMARY KEY,
+    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
+    csv_line INTEGER NOT NULL,
+    age_group TEXT NOT NULL
+);
+
+-- Create the csv_gender table
+CREATE TABLE csv_gender (
+    id SERIAL PRIMARY KEY,
+    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
+    csv_line INTEGER NOT NULL,
+    gender TEXT NOT NULL
+);
+
+
+
+
 ---- Create the localized_meta table with a foreign key to variant
 --CREATE TABLE localized_meta (
 --    id SERIAL PRIMARY KEY,

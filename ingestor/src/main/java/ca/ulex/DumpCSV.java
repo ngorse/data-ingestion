@@ -57,6 +57,7 @@ public class DumpCSV
                     }
                 }
 
+                conn.close();
                 System.out.println("\nTotal lines dumped: " + linesDumped);
                 System.out.println("Total elapsed time: " + Utils.formatTime(System.currentTimeMillis() - startTime));
             }
