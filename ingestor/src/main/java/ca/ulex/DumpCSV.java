@@ -19,10 +19,15 @@ public class DumpCSV
 
     public static void main(String[] args)
     {
-        String query = "SELECT b.id, p.id_brand, p.product_id, cb.id_product, cb.name " +
+        String query = "SELECT b.id, p.id_brand, p.product_id, cb.id_product, cb.name, " +
+                              "v.variant_id, cag.age_group, cg.gender, v.size_type " +
                 "FROM product p " +
                 "JOIN brand b ON p.id_brand = b.id " +
-                "JOIN csv_brand cb ON cb.id_product = p.id";
+                "JOIN csv_brand cb ON cb.id_product = p.id " +
+                "JOIN variant v ON v.id_product = p.id " +
+                "JOIN csv_age_group cag ON cag.id_variant = v.id " +
+                "JOIN csv_gender cg ON cg.id_variant = v.id " +
+                "WHERE cag.csv_line = cg.csv_line AND cb.csv_line = cg.csv_line";
 
         try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
              BufferedWriter writer = new BufferedWriter(new FileWriter(CSV_FILE))) {
@@ -44,9 +49,9 @@ public class DumpCSV
                             .append(("product_name")).append(",")
                             .append(rs.getString("name")).append(",")
                             .append(("color")).append(",")
-                            .append(("age_group")).append(",")
-                            .append(("gender")).append(",")
-                            .append(("size_type")).append(",")
+                            .append(rs.getString("age_group")).append(",")
+                            .append(rs.getString("gender")).append(",")
+                            .append(rs.getString("size_type")).append(",")
                             .append(("product_type"));
 
                     writer.write(row.toString());

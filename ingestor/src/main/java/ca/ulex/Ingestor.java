@@ -77,6 +77,10 @@ public class Ingestor
                 int idProduct = insertProductAndBrand(conn, productMap, productId, csvLine, brand);
                 int idVariant = insertVariant(conn, variantMap, idProduct, variantId, ageGroup, gender, sizeType, csvLine);
                 insertLocalizedMeta(conn, idVariant, csvLine, sizeLabel, productName, color, productType);
+
+                if (csvLine % 1000 == 0) {
+                    System.out.print("\rIngested lines: " + Utils.decimalFormat.format(csvLine));
+                }
             }
 
             csvReader.close();
