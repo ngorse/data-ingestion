@@ -22,19 +22,19 @@ function diff_results()
     return ${result}
 }
 
-BASE=.$RANDOM
-DATA=`dirname ${0}`/data
+TEST=${1}
 INPUT=${2}
-OUTPUT=${DATA}/${BASE}.output.csv
+BASE=.$RANDOM
+OUTPUT=${BASE}.output.csv
 
-echo "${1} - ingesting and dumping ${INPUT}"
+echo "${TEST} - ingesting and dumping ${INPUT}"
 
-run_command ./compile.sh
-run_command ../db-reset.sh
-run_command ./ingest.sh ${INPUT}
-run_command ./dump.sh ${OUTPUT}
+run_command ./bin/compile.sh
+run_command ../db/db-reset.sh
+run_command ./bin/ingest.sh ${INPUT}
+run_command ./bin/dump.sh ${OUTPUT}
 run_command diff_results
 run_command \rm ${BASE}.i ${BASE}.o ${OUTPUT}
 
-echo -e "\033[0;32mSUCCESS\033[0m"
+echo -e "    \033[0;32mSUCCESS\033[0m\n"
 
