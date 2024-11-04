@@ -6,8 +6,9 @@ import java.util.concurrent.TimeUnit;
 
 public class Utils
 {
-    static DecimalFormat decimalFormat = new DecimalFormat("#,###");
+    public static final String CSV_HEADER="variant_id,product_id,size_label,product_name,brand,color,age_group,gender,size_type,product_type";
 
+    static DecimalFormat decimalFormat = new DecimalFormat("#,###");
     public static String formatTime(long durationMillis)
     {
         long hours = TimeUnit.MILLISECONDS.toHours(durationMillis);

@@ -71,6 +71,8 @@ public class Ingestor
 
                 insertProductAndBrand(conn, productMap, productId, csvLine, brand);
             }
+
+            csvReader.close();
         }
         catch (IOException | SQLException | CsvException e) {
             System.out.println("csvLine: " + csvLine);

@@ -10,32 +10,55 @@ CREATE DATABASE inventory;
 -- Connect to the newly created database
 \c inventory
 
+-- Create the brand table
+CREATE TABLE brand (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL
+);
+
 -- Create the product table with a foreign key to brand
 CREATE TABLE product (
     id SERIAL PRIMARY KEY,
-    csv_line INTEGER NOT NULL,
+    id_brand INTEGER NOT NULL REFERENCES brand(id) ON DELETE CASCADE,
     product_id TEXT NOT NULL
 );
 
--- Create the variant table with a foreign key to product
-CREATE TABLE variant (
+-- Create the brand table
+CREATE TABLE csv_brand (
     id SERIAL PRIMARY KEY,
     id_product INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE,
     csv_line INTEGER NOT NULL,
-    variant_id TEXT NOT NULL,
-    size_type TEXT
+    name TEXT NOT NULL
 );
 
--- Create the localized_meta table with a foreign key to variant
-CREATE TABLE metadata (
-    id SERIAL PRIMARY KEY,
-    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
-    csv_line INTEGER NOT NULL,
-    size_label TEXT,
-    product_name TEXT,
-    brand TEXT,
-    color TEXT,
-    age_group TEXT,
-    gender TEXT,
-    product_type TEXT
-);
+---- Create the variant table with a foreign key to product
+--CREATE TABLE variant (
+--    id SERIAL PRIMARY KEY,
+--    id_product INTEGER NOT NULL REFERENCES product(id) ON DELETE CASCADE,
+--    csv_line INTEGER NOT NULL,
+--    variant_id TEXT NOT NULL,
+--    age_group TEXT,  -- Flag if there are inconsistencies during ingestion
+--    gender TEXT,     -- Flag if there are inconsistencies during ingestion
+--    size_type TEXT DEFAULT 'regular',  -- Default value since it is the same across the database
+--    UNIQUE (variant_id)  -- Ensure each variant_id is unique
+--);
+--
+---- Create the localized_meta table with a foreign key to variant
+--CREATE TABLE localized_meta (
+--    id SERIAL PRIMARY KEY,
+--    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
+--    csv_line INTEGER NOT NULL,
+--    size_label TEXT,
+--    product_name TEXT,
+--    color TEXT,
+--    product_type TEXT
+--);
+--
+---- Create a warnings table to store flags for issues
+--CREATE TABLE warnings (
+--    id SERIAL PRIMARY KEY,
+--    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
+--    warning_type TEXT,  -- e.g., 'size_label', 'age_group', 'gender'
+--    description TEXT     -- Additional information about the issue
+--);
+--
