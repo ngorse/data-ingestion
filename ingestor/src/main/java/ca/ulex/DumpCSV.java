@@ -20,14 +20,16 @@ public class DumpCSV
     public static void main(String[] args)
     {
         String query = "SELECT b.id, p.id_brand, p.product_id, cb.id_product, cb.name, " +
-                              "v.variant_id, cag.age_group, cg.gender, v.size_type " +
+                              "v.variant_id, cag.age_group, cg.gender, v.size_type, " +
+                              "m.size_label, m.product_name, m.color, m.product_type " +
                 "FROM product p " +
                 "JOIN brand b ON p.id_brand = b.id " +
                 "JOIN csv_brand cb ON cb.id_product = p.id " +
                 "JOIN variant v ON v.id_product = p.id " +
                 "JOIN csv_age_group cag ON cag.id_variant = v.id " +
                 "JOIN csv_gender cg ON cg.id_variant = v.id " +
-                "WHERE cag.csv_line = cg.csv_line AND cb.csv_line = cg.csv_line";
+                "JOIN localized_meta m ON m.id_variant = v.id " +
+                "WHERE cag.csv_line = cg.csv_line AND cb.csv_line = cg.csv_line AND m.csv_line = cg.csv_line";
 
         try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
              BufferedWriter writer = new BufferedWriter(new FileWriter(CSV_FILE))) {
@@ -45,14 +47,14 @@ public class DumpCSV
                     StringBuilder row = new StringBuilder();
                     row.append(rs.getString("variant_id")).append(",")
                             .append(rs.getString("product_id")).append(",")
-                            .append(("size_label")).append(",")
-                            .append(("product_name")).append(",")
+                            .append(rs.getString("size_label")).append(",")
+                            .append(rs.getString("product_name")).append(",")
                             .append(rs.getString("name")).append(",")
-                            .append(("color")).append(",")
+                            .append(rs.getString("color")).append(",")
                             .append(rs.getString("age_group")).append(",")
                             .append(rs.getString("gender")).append(",")
                             .append(rs.getString("size_type")).append(",")
-                            .append(("product_type"));
+                            .append(rs.getString("product_type"));
 
                     writer.write(row.toString());
                     writer.newLine(); // Move to the next line
