@@ -43,7 +43,7 @@ public class DumpCSV
 
                 while (rs.next()) {
                     StringBuilder row = new StringBuilder();
-                    row.append(("variant_id")).append(",")
+                    row.append(rs.getString("variant_id")).append(",")
                             .append(rs.getString("product_id")).append(",")
                             .append(("size_label")).append(",")
                             .append(("product_name")).append(",")

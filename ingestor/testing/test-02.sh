@@ -15,8 +15,8 @@ function run_command()
 
 function diff_results()
 {
-    cat ${INPUT} | cut -d, -f2,5 > ${BASE}.i
-    cat ${OUTPUT} | cut -d, -f2,5 > ${BASE}.o
+    cat ${INPUT} | cut -d, -f1,2,5,7,8,9 > ${BASE}.i
+    cat ${OUTPUT} | cut -d, -f1,2,5,7,8,9 > ${BASE}.o
     diff ${BASE}.i ${BASE}.o
     result=${?}
     \rm ${BASE}.i ${BASE}.o ${OUTPUT}

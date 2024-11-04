@@ -280,6 +280,12 @@ public class Ingestor
 
 
 
+
+
+
+
+
+
     private static int insertVariant(Connection conn, Map<String, Integer> variantIdMap, int productId, String variantId, String sizeType, int csvLine)
     throws SQLException
     {
