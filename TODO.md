@@ -1,25 +1,35 @@
 
-[ ] database
-    [x] raw data analysis
-    [x] schema
-    [x] initialization script
+[X] data loading
 
-[x] reduced version of the datafile
+[ ] data cleaning
+    [ ] inconsistencies
+    [ ] missing values
+    [ ] invalid values
+    [ ] exceptional cases
+    [ ] data validation
+    [ ] cleaning -- standardize brand column: ensure special characters are stored (and can be retrieved) properly. try to find similar values and group them under one canonical name. E.g. Alexander McQueen and Alexander McQueen Kids could be grouped. Similarly, ADIDAS and Adidas are different spellings of the same brand, etc.
 
-[ ] java framework working with reduced version
-    [x] data loading 
-    [x] data writing 
-    [ ] unit tests
+[X] data persistence
 
-[ ] java framework working with full version
+[X] database setup
 
-[ ] containerization
+[/] java application
+
+[X] sql schema
+
+[ ] dockerized environment
     [ ] docker
     [ ] install and run scripts
 
-[ ] e2e tests
-    [ ] tests
-    [ ] automation
+[ ] instructions
+    [ ] README.md
+    [ ] ANALYSIS.md
+
+[X] artifacts
+
+[/] e2e tests
+    [/] tests
+    [/] automation
 
 [ ] data validation and cleaning
     [ ] inconsistencies
@@ -29,6 +39,3 @@
     [ ] data validation
     [ ] cleaning -- standardize brand column: ensure special characters are stored (and can be retrieved) properly. try to find similar values and group them under one canonical name. E.g. Alexander McQueen and Alexander McQueen Kids could be grouped. Similarly, ADIDAS and Adidas are different spellings of the same brand, etc.
 
-[ ] augment e2e tests
-
-[ ] README.md
