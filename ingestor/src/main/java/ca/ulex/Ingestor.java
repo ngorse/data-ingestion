@@ -2,7 +2,8 @@ package ca.ulex;
 
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
-
+import org.apache.tika.langdetect.optimaize.OptimaizeLangDetector;
+import org.apache.tika.language.detect.LanguageDetector;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.Connection;
@@ -10,279 +11,273 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class Ingestor
 {
-    public static void main(String[] args)
-    {
-        final String URL = System.getenv("INGESTOR_DB_URL");
-        final String USER = System.getenv("INGESTOR_DB_USER");
-        final String PASSWORD = System.getenv("INGESTOR_DB_PASSWORD");
-        final boolean AUTO_COMMIT = (Boolean.parseBoolean(System.getenv("INGESTOR_DB_AUTOCOMMIT")));
-        final String CSV_FILE = System.getenv("INGESTOR_DB_CSV_INPUT");
-        Utils.exitOnInvalidCSVFilePath(CSV_FILE);
+    final static String[] LOCALES = {"zh-CN", "en", "fr", "de", "it", "ja", "ko", "pt", "ru", "es"};
+    final static LanguageDetector detector = initializeLanguageDetector();
 
-        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD)) {
-            conn.setAutoCommit(AUTO_COMMIT);
+    public static void main(String[] args) {
+        String dbUrl = System.getenv("INGESTOR_DB_URL");
+        String dbUser = System.getenv("INGESTOR_DB_USER");
+        String dbPassword = System.getenv("INGESTOR_DB_PASSWORD");
+        boolean autoCommit = Boolean.parseBoolean(System.getenv("INGESTOR_DB_AUTOCOMMIT"));
+        String csvFilePath = System.getenv("INGESTOR_DB_CSV_INPUT");
+
+        Utils.exitOnInvalidCSVFilePath(csvFilePath);
+
+        try (Connection dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword)) {
+            dbConnection.setAutoCommit(autoCommit);
             long startTime = System.currentTimeMillis();
 
-            int linesIngested = ingestCSV(CSV_FILE, conn);
+            int linesIngested = ingestCSV(csvFilePath, dbConnection);
 
-            if (!AUTO_COMMIT) {
-                conn.commit();
+            if (!autoCommit) {
+                dbConnection.commit();
             }
-            conn.close();
 
             System.out.println("\nTotal lines ingested: " + linesIngested);
             System.out.println("Total elapsed time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
-        }
-        catch (Exception e) {
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("An error occurred: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private static int ingestCSV(String csvFilePath, Connection conn)
+    private static LanguageDetector initializeLanguageDetector()
     {
-        int csvLine = 0;
+        Set<String> languages = new HashSet<>(Arrays.asList(LOCALES));
         try {
-            CSVReader csvReader = new CSVReader(new FileReader(csvFilePath));
+            return new OptimaizeLangDetector().loadModels(languages);
+        } catch (IOException e) {
+            return new OptimaizeLangDetector().loadModels();
+        }
+    }
 
-            /** maps
-                productMap <product_id, id_product>
-             */
-            Map<String, Integer> productMap = new HashMap<>();
-            Map<String, Integer> variantMap = new HashMap<>();
+    private static int ingestCSV(String csvFilePath, Connection dbConnection) {
+        Map<String, Integer> productMap = new HashMap<>();
+        Map<String, Integer> variantMap = new HashMap<>();
+        int csvLine = 0;
 
-            /** get line
-             */
-            // RFE -- Should validate the header instead of skipping it
-            csvReader.readNext();
+        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath))) {
+            // Read and validate the header
+            String[] header = csvReader.readNext();
+            if (header == null || header.length < 10) {
+                throw new IllegalArgumentException("Invalid CSV header");
+            }
 
             String[] line;
             while ((line = csvReader.readNext()) != null) {
                 csvLine++;
-                String variantId = line[0];
-                String productId = line[1];
-                String sizeLabel = line[2];
-                String productName = line[3];
-                String brand = line[4];
-                String color = line[5];
-                String ageGroup = line[6];
-                String gender = line[7];
-                String sizeType = line[8];
-                String productType = line[9];
-
-                int idProduct = insertProductAndBrand(conn, productMap, productId, csvLine, brand);
-                int idVariant = insertVariant(conn, variantMap, idProduct, variantId, ageGroup, gender, sizeType, csvLine);
-                insertLocalizedMeta(conn, idVariant, csvLine, sizeLabel, productName, color, productType);
+                int idProduct = insertProductAndBrand(dbConnection, productMap, csvLine,
+                        line[1],  // product_id
+                        line[4]   // brand
+                );
+                int idVariant = insertVariant(dbConnection, variantMap, idProduct, csvLine,
+                        line[0],  // variant_id
+                        line[6],  // age_group
+                        line[7],  // gender
+                        line[8]   // size_type
+                );
+                insertLocalizedMeta(dbConnection, idVariant, csvLine,
+                        line[2],  // size_label
+                        line[3],  // product_name
+                        line[5],  // color
+                        line[9]   // product_type
+                );
 
                 if (csvLine % 1000 == 0) {
                     System.out.print("\rIngested lines: " + Utils.decimalFormat.format(csvLine));
                 }
             }
-
-            csvReader.close();
-        }
-        catch (IOException | SQLException | CsvException e) {
-            System.out.println("csvLine: " + csvLine);
+        } catch (IOException | SQLException | CsvException e) {
+            System.out.println("Error on csvLine: " + csvLine);
             e.printStackTrace();
         }
 
         return csvLine;
     }
 
-    private static int insertProductAndBrand(Connection conn, Map<String, Integer> productMap,
-                                             String productId, int csvLine, String brand)
-            throws SQLException
-    {
-        /**
-         IF product_id exists in product_map:
-             map - get entry in productMap: product_id -> id_product
-             sql add entry in csv_brand (id_product, csv_line, name)
-         ELSE:
-            sql - add entry in brand (name), get id_brand
-            sql - add entry in product (id_brand, product_id)
-            map - add entry in productMap (product_id, id_product)
-            sql - add entry in csv_brand (id_product, csv_line, name)
-         */
-
+    private static int insertProductAndBrand(Connection dbConnection, Map<String, Integer> productMap,
+                                             int csvLine, String productId, String brand) throws SQLException {
+        // Check if the product already exists in the map
         if (productMap.containsKey(productId)) {
             int idProduct = productMap.get(productId);
-            insertCsvBrand(conn, idProduct, csvLine, brand);
+            insertCsvBrand(dbConnection, idProduct, csvLine, brand);
             return idProduct;
         }
-        else {
-            int idBrand = insertBrand(conn, brand);
-            String sql = "INSERT INTO product (id_brand, product_id) VALUES (?, ?) RETURNING id";
-            PreparedStatement stmt = conn.prepareStatement(sql);
+
+        // Insert brand and product if it doesn't exist
+        int idBrand = insertBrand(dbConnection, brand);
+        String sql = "INSERT INTO product (id_brand, product_id) VALUES (?, ?) RETURNING id";
+
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
             stmt.setInt(1, idBrand);
             stmt.setString(2, productId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                int idProduct = rs.getInt(1);
-                productMap.put(productId, idProduct);
-                insertCsvBrand(conn, idProduct, csvLine, brand);
-                return idProduct;
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int idProduct = rs.getInt(1);
+                    productMap.put(productId, idProduct);
+                    insertCsvBrand(dbConnection, idProduct, csvLine, brand);
+                    return idProduct;
+                }
             }
         }
 
-        // Should throw an exception here
-        return -1;
+        throw new SQLException("Failed to insert product and brand for CSV line: " + csvLine);
     }
 
-    private static int insertBrand(Connection conn, String brand)
-    throws SQLException
-    {
+    private static int insertBrand(Connection dbConnection, String brand) throws SQLException {
         String sql = "INSERT INTO brand (name) VALUES (?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setString(1, brand);
-        ResultSet rs = stmt.executeQuery();
 
-        if (rs.next()) {
-            int id = rs.getInt(1);
-            return id;
-        }
-        else {
-            // Should throw an exception here
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+            stmt.setString(1, brand);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
         }
 
-        return -1;
+        throw new SQLException("Failed to insert brand: " + brand);
     }
 
-    private static void insertCsvBrand(Connection conn, int idProduct, int csvLine, String brand)
-            throws SQLException
-    {
+    private static void insertCsvBrand(Connection dbConnection, int idProduct, int csvLine, String brand) throws SQLException {
         String sql = "INSERT INTO csv_brand (id_product, csv_line, name) VALUES (?, ?, ?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, idProduct);
-        stmt.setInt(2, csvLine);
-        stmt.setString(3, brand);
-        ResultSet rs = stmt.executeQuery();
 
-        if (!rs.next()) {
-            // Should throw an exception here
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+            stmt.setInt(1, idProduct);
+            stmt.setInt(2, csvLine);
+            stmt.setString(3, brand);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Failed to insert CSV brand for product ID: " + idProduct + " at CSV line: " + csvLine);
+                }
+            }
         }
     }
 
-
-    private static int insertVariant(Connection conn, Map<String, Integer> variantMap, int idProduct,
-                                     String variantId, String ageGroup, String gender, String sizeType, int csvLine)
-    throws SQLException
-    {
-        /**
-         IF variant_id exists in variant_map:
-            map - get entry in variantMap: variant_id -> id_variant
-            sql add entry in csv_age_group (id_variant, csv_line, age_group)
-            sql add entry in csv_gender (id_variant, csv_line, gender)
-            sql alter gender_male |= gender == male
-            sql alter gender_female |= gender == female
-            sql alter gender_unisex |= gender == unisex
-         ELSE:
-            sql - add entry in variant (id_product, variant_id, age_group, gender_male, gender_female, gender_unisex, size_type)
-            map - add entry in variantMap (variant_id, id_variant)
-            sql add entry in csv_age_group (id_variant, csv_line, age_group)
-            sql add entry in csv_gender (id_variant, csv_line, gender)
-         */
-
+    private static int insertVariant(Connection dbConnection, Map<String, Integer> variantMap, int idProduct,
+                                     int csvLine, String variantId, String ageGroup, String gender, String sizeType) throws SQLException {
         if (variantMap.containsKey(variantId)) {
             int idVariant = variantMap.get(variantId);
-            insertCsvAgeGroup(conn, idVariant, csvLine, ageGroup);
-            insertCsvGender(conn, idVariant, csvLine, gender);
-            updateGender(conn, gender, idVariant);
+            insertCsvAgeGroup(dbConnection, idVariant, csvLine, ageGroup);
+            insertCsvGender(dbConnection, idVariant, csvLine, gender);
+            updateGender(dbConnection, gender, idVariant);
             return idVariant;
         }
-        else {
-            String sql = "INSERT INTO variant (id_product, variant_id, age_group, gender_male, gender_female, gender_unisex, size_type) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
-            PreparedStatement stmt = conn.prepareStatement(sql);
+
+        String sql = "INSERT INTO variant (id_product, variant_id, age_group, gender_male, gender_female, gender_unisex, size_type) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
+
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
             stmt.setInt(1, idProduct);
             stmt.setString(2, variantId);
             stmt.setString(3, ageGroup);
-            stmt.setBoolean(4, gender.equalsIgnoreCase("male"));
-            stmt.setBoolean(5, gender.equalsIgnoreCase("female"));
-            stmt.setBoolean(6, gender.equalsIgnoreCase("unisex"));
+            stmt.setBoolean(4, "male".equalsIgnoreCase(gender));
+            stmt.setBoolean(5, "female".equalsIgnoreCase(gender));
+            stmt.setBoolean(6, "unisex".equalsIgnoreCase(gender));
             stmt.setString(7, sizeType);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                int idVariant = rs.getInt(1);
-                variantMap.put(variantId, idVariant);
-                insertCsvAgeGroup(conn, idVariant, csvLine, ageGroup);
-                insertCsvGender(conn, idVariant, csvLine, gender);
-                return idVariant;
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int idVariant = rs.getInt(1);
+                    variantMap.put(variantId, idVariant);
+                    insertCsvAgeGroup(dbConnection, idVariant, csvLine, ageGroup);
+                    insertCsvGender(dbConnection, idVariant, csvLine, gender);
+                    return idVariant;
+                }
             }
         }
 
-        // Should throw an exception here
-        return -1;
+        throw new SQLException("Failed to insert variant for ID: " + variantId + " at CSV line: " + csvLine);
     }
 
-    private static void updateGender(Connection conn, String gender, int idVariant)
-    throws SQLException
-    {
-        if (gender.equalsIgnoreCase("male") ||
-                gender.equalsIgnoreCase("female") ||
-                gender.equalsIgnoreCase("unisex")
-        ) {
-            String sql = "UPDATE variant SET gender_" + gender.toLowerCase() + " = true WHERE id = ?";
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            stmt.setInt(1, idVariant);
-            stmt.executeUpdate();
-        }
-        else {
-            // RFE -- record warning
+    private static void updateGender(Connection dbConnection, String gender, int idVariant) throws SQLException {
+        String normalizedGender = gender.toLowerCase();
+
+        if (isValidGender(normalizedGender)) {
+            String sql = "UPDATE variant SET gender_" + normalizedGender + " = true WHERE id = ?";
+
+            try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+                stmt.setInt(1, idVariant);
+                stmt.executeUpdate();
+            }
+        } else {
+            // Record a warning for invalid gender
+            recordInvalidGenderWarning(gender, idVariant);
         }
     }
 
-    private static void insertCsvAgeGroup(Connection conn, int idVariant, int csvLine, String ageGroup)
-    throws SQLException
-    {
+    private static boolean isValidGender(String gender) {
+        return "male".equals(gender) || "female".equals(gender) || "unisex".equals(gender);
+    }
+
+    private static void recordInvalidGenderWarning(String gender, int idVariant) {
+        // Implement warning logging here
+        System.err.println("Warning: Invalid gender '" + gender + "' for variant ID: " + idVariant);
+    }
+
+    private static void insertCsvAgeGroup(Connection dbConnection, int idVariant, int csvLine, String ageGroup) throws SQLException {
         String sql = "INSERT INTO csv_age_group (id_variant, csv_line, age_group) VALUES (?, ?, ?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, idVariant);
-        stmt.setInt(2, csvLine);
-        stmt.setString(3, ageGroup);
-        ResultSet rs = stmt.executeQuery();
 
-        if (!rs.next()) {
-            // RFE -- throw an exception here
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+            stmt.setInt(1, idVariant);
+            stmt.setInt(2, csvLine);
+            stmt.setString(3, ageGroup);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Insertion failed, no ID returned for variant ID: " + idVariant);
+                }
+            }
         }
     }
 
-    private static void insertCsvGender(Connection conn, int idVariant, int csvLine, String gender)
-            throws SQLException
-    {
+    private static void insertCsvGender(Connection dbConnection, int idVariant, int csvLine, String gender) throws SQLException {
         String sql = "INSERT INTO csv_gender (id_variant, csv_line, gender) VALUES (?, ?, ?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, idVariant);
-        stmt.setInt(2, csvLine);
-        stmt.setString(3, gender);
-        ResultSet rs = stmt.executeQuery();
 
-        if (!rs.next()) {
-            // RFE -- throw an exception here
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+            stmt.setInt(1, idVariant);
+            stmt.setInt(2, csvLine);
+            stmt.setString(3, gender);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Insertion failed, no ID returned for variant ID: " + idVariant);
+                }
+            }
         }
     }
 
-    private static void insertLocalizedMeta(Connection conn, int idVariant, int csvLine, String sizeLabel,
-                                            String productName, String color, String productType)
-    throws SQLException
-    {
+    private static void insertLocalizedMeta(Connection dbConnection, int idVariant, int csvLine,
+                                            String sizeLabel, String productName, String color, String productType) throws SQLException {
         String sql = "INSERT INTO localized_meta(id_variant, csv_line, locale, size_label, product_name, color, product_type) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        stmt.setInt(1, idVariant);
-        stmt.setInt(2, csvLine);
-        stmt.setString(3, determineLocale());
-        stmt.setString(4, sizeLabel);
-        stmt.setString(5, productName);
-        stmt.setString(6, color);
-        stmt.setString(7, productType);
-        stmt.executeQuery();
-    }
 
-    private static String determineLocale()
-    {
-        return "undetermined";
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
+            stmt.setInt(1, idVariant);
+            stmt.setInt(2, csvLine);
+
+            // Detect language
+            String locale = detector.detect(productName + " " + color + " " + productType.replace(">", " ")).getLanguage();
+            stmt.setString(3, locale);
+
+            // Set other parameters
+            stmt.setString(4, sizeLabel);
+            stmt.setString(5, productName);
+            stmt.setString(6, color);
+            stmt.setString(7, productType);
+
+            // Execute the insert
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("Insertion failed, no ID returned for variant ID: " + idVariant);
+                }
+            }
+        }
     }
 
 }

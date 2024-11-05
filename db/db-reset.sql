@@ -51,18 +51,17 @@ CREATE TABLE localized_meta (
     id SERIAL PRIMARY KEY,
     id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
     csv_line INTEGER NOT NULL,
-    locale TEXT DEFAULT 'undetermined',
+    locale TEXT,
     size_label TEXT,
     product_name TEXT,
     color TEXT,
     product_type TEXT
 );
 
----- Create a warnings table to store flags for issues
---CREATE TABLE warnings (
---    id SERIAL PRIMARY KEY,
---    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
---    warning_type TEXT,  -- e.g., 'size_label', 'age_group', 'gender'
---    description TEXT     -- Additional information about the issue
---);
---
+CREATE TABLE warnings (
+    id SERIAL PRIMARY KEY,
+    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
+    warning_type TEXT,  -- e.g., 'size_label', 'age_group', 'gender'
+    description TEXT     -- Additional information about the issue
+);
+

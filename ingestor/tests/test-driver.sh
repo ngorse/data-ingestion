@@ -6,7 +6,7 @@ function run_command()
     ${*} >& /dev/null
     if [ $? -ne 0 ]; then
         echo -e " - \033[0;31mfailed\033[0m"
-        echo -e "\033[0;31mFAILURE\033[0m"
+        echo -e "    \033[0;31mFAILURE\033[0m\n"
         exit 1
     else
         echo -e " - \033[0;32mpassed\033[0m"
