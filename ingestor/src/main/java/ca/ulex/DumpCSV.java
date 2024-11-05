@@ -22,7 +22,7 @@ public class DumpCSV
         try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
              BufferedWriter writer = new BufferedWriter(new FileWriter(CSV_FILE))) {
 
-            writer.write(Utils.CSV_HEADER);
+            writer.write(String.join(",", Utils.CSV_HEADER));
             writer.newLine();
 
             long startTime = System.currentTimeMillis();

@@ -19,4 +19,3 @@ fi
 
 echo ${INGESTOR_DB_CSV_INPUT}
 mvn exec:java -e -Dexec.mainClass="ca.ulex.Ingestor" -Dexec.args="${*}"
-echo $?

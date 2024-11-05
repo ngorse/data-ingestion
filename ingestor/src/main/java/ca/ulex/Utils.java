@@ -6,7 +6,8 @@ import java.util.concurrent.TimeUnit;
 
 public class Utils
 {
-    public static final String CSV_HEADER="variant_id,product_id,size_label,product_name,brand,color,age_group,gender,size_type,product_type";
+    public static final String[] CSV_HEADER={"variant_id","product_id","size_label","product_name","brand","color",
+            "age_group","gender","size_type","product_type"};
 
     public static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("#,###");
 
@@ -16,7 +17,7 @@ public class Utils
         long seconds = TimeUnit.MILLISECONDS.toSeconds(durationMillis) % 60;
         long millis = durationMillis % 1000; // Simplified to avoid unnecessary conversion
 
-        return String.format("%dh %02dm %02d.%03ds", hours, minutes, seconds, millis);
+        return String.format("%d:%02d:%02d.%03ds", hours, minutes, seconds, millis);
     }
 
     public static void exitOnInvalidCSVFilePath(String csvFile) {

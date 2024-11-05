@@ -17,6 +17,7 @@ public class Ingestor
 {
     final static String[] LOCALES = {"zh-CN", "en", "fr", "de", "it", "ja", "ko", "pt", "ru", "es"};
     final static LanguageDetector detector = initializeLanguageDetector();
+    final static String WARNING_EMPTY_FIELD = "Line dropped: Empty field";
 
     public static void main(String[] args) {
         String dbUrl = System.getenv("INGESTOR_DB_URL");
@@ -29,16 +30,12 @@ public class Ingestor
 
         try (Connection dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword)) {
             dbConnection.setAutoCommit(autoCommit);
-            long startTime = System.currentTimeMillis();
 
-            int linesIngested = ingestCSV(csvFilePath, dbConnection);
+            ingestCSV(csvFilePath, dbConnection);
 
             if (!autoCommit) {
                 dbConnection.commit();
             }
-
-            System.out.println("\nTotal lines ingested: " + linesIngested);
-            System.out.println("Total elapsed time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
         } catch (SQLException e) {
             System.err.println("Database error: " + e.getMessage());
         } catch (Exception e) {
@@ -57,22 +54,33 @@ public class Ingestor
         }
     }
 
-    private static int ingestCSV(String csvFilePath, Connection dbConnection) {
+    private static void ingestCSV(String csvFilePath, Connection dbConnection) {
         Map<String, Integer> productMap = new HashMap<>();
         Map<String, Integer> variantMap = new HashMap<>();
-        int csvLine = 0;
+        Map<String, Integer> brandMap = new HashMap<>();
+        long startTime = System.currentTimeMillis();
 
+        int linesIngested = 0;
+        int linesDropped = 0;
+        int csvLine = 0;
         try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath))) {
-            // Read and validate the header
             String[] header = csvReader.readNext();
-            if (header == null || header.length < 10) {
+            if (header == null || header.length < 10 || !Arrays.equals(header, Utils.CSV_HEADER)) {
                 throw new IllegalArgumentException("Invalid CSV header");
             }
 
             String[] line;
             while ((line = csvReader.readNext()) != null) {
                 csvLine++;
-                int idProduct = insertProductAndBrand(dbConnection, productMap, csvLine,
+
+                if (hasEmptyField(line)) {
+                    insertWarning(dbConnection, csvLine, WARNING_EMPTY_FIELD);
+                    linesDropped++;
+                    continue;
+                }
+                linesIngested++;
+
+                int idProduct = insertProductAndBrand(dbConnection, productMap, brandMap, csvLine,
                         line[1],                       // product_id
                         Utils.normalizeText(line[4])   // brand
                 );
@@ -89,8 +97,8 @@ public class Ingestor
                         line[9]                        // product_type
                 );
 
-                if (csvLine % 1000 == 0) {
-                    System.out.print("\rIngested lines: " + Utils.DECIMAL_FORMAT.format(csvLine));
+                if (linesIngested % 1000 == 0) {
+                    System.out.print("\rIngested lines: " + Utils.DECIMAL_FORMAT.format(linesIngested) + "+");
                 }
             }
         } catch (IOException | SQLException | CsvException e) {
@@ -98,10 +106,30 @@ public class Ingestor
             e.printStackTrace();
         }
 
-        return csvLine;
+        System.out.println("\nTotal lines ingested: " + linesIngested);
+        System.out.println("Total lines dropped : " + linesDropped);
+        System.out.println("Total elapsed time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
+    }
+
+    private static void insertWarning(Connection dbConnection, int csvLine, String description) throws SQLException, IOException {
+        String sql = "INSERT INTO warnings (csv_line, description) VALUES (?, ?)";
+        PreparedStatement stmt = dbConnection.prepareStatement(sql);
+        stmt.setInt(1, csvLine);
+        stmt.setString(2, description);
+        stmt.executeUpdate();
+    }
+
+    private static boolean hasEmptyField(String[] line) {
+        for (String str : line) {
+            if (str == null || str.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int insertProductAndBrand(Connection dbConnection, Map<String, Integer> productMap,
+                                             Map<String, Integer> brandMap,
                                              int csvLine, String productId, String brand) throws SQLException {
         // Check if the product already exists in the map
         if (productMap.containsKey(productId)) {
@@ -111,7 +139,7 @@ public class Ingestor
         }
 
         // Insert brand and product if it doesn't exist
-        int idBrand = insertBrand(dbConnection, brand);
+        int idBrand = insertBrand(dbConnection, brandMap, brand);
         String sql = "INSERT INTO product (id_brand, product_id) VALUES (?, ?) RETURNING id";
 
         try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
@@ -131,14 +159,19 @@ public class Ingestor
         throw new SQLException("Failed to insert product and brand for CSV line: " + csvLine);
     }
 
-    private static int insertBrand(Connection dbConnection, String brand) throws SQLException {
-        String sql = "INSERT INTO brand (name) VALUES (?) RETURNING id";
+    private static int insertBrand(Connection dbConnection, Map<String, Integer> brandMap, String brand) throws SQLException {
+        if (brandMap.containsKey(brand)) {
+            return brandMap.get(brand);
+        }
 
+        String sql = "INSERT INTO brand (name) VALUES (?) RETURNING id";
         try (PreparedStatement stmt = dbConnection.prepareStatement(sql)) {
             stmt.setString(1, brand);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getInt(1);
+                    int brandId = rs.getInt(1);
+                    brandMap.put(brand, brandId);
+                    return brandId;
                 }
             }
         }

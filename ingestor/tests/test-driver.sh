@@ -15,7 +15,7 @@ function run_command()
 
 function diff_results()
 {
-    cat ${INPUT} | sed -e 's/"//g' | tr '[:upper:]' '[:lower:]' | sort > ${BASE}.i
+    cat ${INPUT} | sed -e 's/"//g' | tr '[:upper:]' '[:lower:]' | grep -v ,, | sort > ${BASE}.i
     cat ${OUTPUT} | sed -e 's/"//g' | tr '[:upper:]' '[:lower:]' | sort > ${BASE}.o
     diff ${BASE}.i ${BASE}.o
     result=${?}

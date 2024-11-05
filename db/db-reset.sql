@@ -60,8 +60,7 @@ CREATE TABLE localized_meta (
 
 CREATE TABLE warnings (
     id SERIAL PRIMARY KEY,
-    id_variant INTEGER NOT NULL REFERENCES variant(id) ON DELETE CASCADE,
-    warning_type TEXT,  -- e.g., 'size_label', 'age_group', 'gender'
-    description TEXT     -- Additional information about the issue
+    csv_line int,
+    description TEXT
 );
 
