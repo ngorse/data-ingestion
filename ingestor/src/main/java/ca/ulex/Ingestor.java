@@ -90,7 +90,7 @@ public class Ingestor
                 );
 
                 if (csvLine % 1000 == 0) {
-                    System.out.print("\rIngested lines: " + Utils.decimalFormat.format(csvLine));
+                    System.out.print("\rIngested lines: " + Utils.DECIMAL_FORMAT.format(csvLine));
                 }
             }
         } catch (IOException | SQLException | CsvException e) {
