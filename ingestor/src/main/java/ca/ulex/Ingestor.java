@@ -73,20 +73,20 @@ public class Ingestor
             while ((line = csvReader.readNext()) != null) {
                 csvLine++;
                 int idProduct = insertProductAndBrand(dbConnection, productMap, csvLine,
-                        line[1],  // product_id
-                        line[4]   // brand
+                        line[1],                       // product_id
+                        Utils.normalizeText(line[4])   // brand
                 );
                 int idVariant = insertVariant(dbConnection, variantMap, idProduct, csvLine,
-                        line[0],  // variant_id
-                        line[6],  // age_group
-                        line[7],  // gender
-                        line[8]   // size_type
+                        line[0],                       // variant_id
+                        Utils.normalizeText(line[6]),  // age_group
+                        Utils.normalizeText(line[7]),  // gender
+                        line[8].toLowerCase()          // size_type
                 );
                 insertLocalizedMeta(dbConnection, idVariant, csvLine,
-                        line[2],  // size_label
-                        line[3],  // product_name
-                        line[5],  // color
-                        line[9]   // product_type
+                        line[2].toUpperCase(),         // size_label
+                        Utils.normalizeText(line[3]),  // product_name
+                        Utils.normalizeText(line[5]),  // color
+                        line[9]                        // product_type
                 );
 
                 if (csvLine % 1000 == 0) {
