@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./initdb:/docker-entrypoint-initdb.d
+      - ./bin/initdb:/docker-entrypoint-initdb.d
     restart: unless-stopped
     networks:
       - inventory_network

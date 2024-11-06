@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FILE=`dirname ${0}`/db-reset.sql
+FILE=`dirname ${0}`/initdb/db_reset.sql
 TABLES=`grep CREATE\ TABLE ${FILE} | grep -v -- -- | cut -d\  -f3`
 
 for table in ${TABLES}; do
