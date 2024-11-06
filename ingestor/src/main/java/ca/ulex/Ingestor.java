@@ -132,69 +132,75 @@ public class Ingestor
 
         try (PreparedStatement stmt = dbConnection.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
+            Map<String, Map<String, Integer>> productBrandFrequency = populateBrandFrequencyMap(rs);
+            printMostFrequentBrands(productBrandFrequency);
+        }
+    }
 
-            // Map to store the frequency of each brand name per product
-            Map<String, Map<String, Integer>> productBrandFrequency = new HashMap<>();
+    private static Map<String, Map<String, Integer>> populateBrandFrequencyMap(ResultSet rs) throws SQLException {
+        Map<String, Map<String, Integer>> productBrandFrequency = new HashMap<>();
 
-            // Loop through each result and count occurrences of each brand name for each product
-            while (rs.next()) {
-                String productId = rs.getString("product_id");
-                String brandName = rs.getString("name");
+        while (rs.next()) {
+            String productId = rs.getString("product_id");
+            String brandName = rs.getString("name");
 
-                // Initialize frequency map for the product if not already present
-                productBrandFrequency
-                        .computeIfAbsent(productId, k -> new HashMap<>())
-                        .merge(brandName, 1, Integer::sum);
-            }
+            productBrandFrequency
+                    .computeIfAbsent(productId, k -> new HashMap<>())
+                    .merge(brandName, 1, Integer::sum);
+        }
+        return productBrandFrequency;
+    }
 
-            // Iterate through each product and determine the most frequent brand name
-            for (String productId : productBrandFrequency.keySet()) {
-                Map<String, Integer> brandMap = productBrandFrequency.get(productId);
-                if (brandMap.keySet().size() > 1) {
-                    String mostFrequentBrand = findMostFrequentBrand(brandMap);
-                    System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
-                            " - { " + brandMap.keySet() + " }");
-                    checkBrandNameDistance(brandMap.keySet());
-                }
+    private static void printMostFrequentBrands(Map<String, Map<String, Integer>> productBrandFrequency) {
+        for (Map.Entry<String, Map<String, Integer>> entry : productBrandFrequency.entrySet()) {
+            String productId = entry.getKey();
+            Map<String, Integer> brandMap = entry.getValue();
+
+            if (brandMap.size() > 1) {
+                String mostFrequentBrand = findMostFrequentBrand(brandMap);
+                System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
+                        " - { " + brandMap.keySet() + " }");
+                checkBrandNameDistance(brandMap.keySet());
             }
         }
     }
 
-    private static void checkBrandNameDistance(Set<String> stringIntegerMap) {
+    private static String findMostFrequentBrand(Map<String, Integer> brandMap) {
+        return brandMap.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    private static void checkBrandNameDistance(Set<String> brandNames) {
+        Map<String, Integer> similarityMap = calculateSimilarityMap(brandNames);
+        printOutliers(brandNames, similarityMap);
+    }
+
+    private static Map<String, Integer> calculateSimilarityMap(Set<String> brandNames) {
         Map<String, Integer> similarityMap = new HashMap<>();
-        for(String s1: stringIntegerMap) {
-            similarityMap.put(s1, 0);
-            for (String s2 : stringIntegerMap) {
-                if (s1.equalsIgnoreCase(s2)) {
-                    continue;
-                }
-                if (computeSimilarity(s1, s2) >= SIMILARITY_THRESHOLD) {
-                    similarityMap.put(s1, similarityMap.getOrDefault(s1, 0) + 1);
+
+        for (String brand1 : brandNames) {
+            int similarityCount = 0;
+            for (String brand2 : brandNames) {
+                if (!brand1.equalsIgnoreCase(brand2) && computeSimilarity(brand1, brand2) >= SIMILARITY_THRESHOLD) {
+                    similarityCount++;
                 }
             }
+            similarityMap.put(brand1, similarityCount);
         }
+        return similarityMap;
+    }
+
+    private static void printOutliers(Set<String> brandNames, Map<String, Integer> similarityMap) {
         for (Map.Entry<String, Integer> entry : similarityMap.entrySet()) {
             if (entry.getValue() < 1) {
-                System.out.println("- Found outlier: " + entry.getKey() + " - {" + stringIntegerMap + "}");
+                System.out.println("- Found outlier: " + entry.getKey() + " - {" + brandNames + "}");
                 if (similarityMap.size() < 3) {
                     break;
                 }
             }
         }
-    }
-
-    private static String findMostFrequentBrand(Map<String, Integer> brandFrequencyMap) {
-        String mostFrequentBrand = null;
-        int maxFrequency = 0;
-
-        for (Map.Entry<String, Integer> entry : brandFrequencyMap.entrySet()) {
-            if (entry.getValue() > maxFrequency) {
-                maxFrequency = entry.getValue();
-                mostFrequentBrand = entry.getKey();
-            }
-        }
-
-        return mostFrequentBrand;
     }
 
     private static double computeSimilarity(String s1, String s2) {
