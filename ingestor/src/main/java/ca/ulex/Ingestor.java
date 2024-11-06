@@ -19,8 +19,9 @@ public class Ingestor
 {
     final static String[] LOCALES = {"zh-CN", "en", "fr", "de", "it", "ja", "ko", "pt", "ru", "es"};
     final static LanguageDetector detector = initializeLanguageDetector();
-    final static String WARNING_EMPTY_FIELD = "Line dropped: No content for field ";
-    final static String WARNING_INVALID_BRAND = "Line dropped: Brand name too different from others";
+    final static String WARNING_EMPTY_FIELD = "Line dropped - No content for field ";
+    final static String WARNING_OUTLIER_BRAND_NAME = "Outlier brand - Too different from other names: ";
+    final static String WARNING_MULTIPLE_BRAND_NAMES = "Multiple brand names - Chosen name: ";
     final static double SIMILARITY_THRESHOLD=0.8;
 
     public static void main(String[] args) {
@@ -111,7 +112,7 @@ public class Ingestor
             }
 
             postProcessStartTime = System.currentTimeMillis();
-            postProcessBrandNamesForProducts(dbConnection);
+            postProcessBrandNamesForProducts(dbConnection, csvLine);
             stopTime = System.currentTimeMillis();
 
         } catch (IOException | SQLException | CsvException e) {
@@ -126,15 +127,29 @@ public class Ingestor
         System.out.println("    Post-process   : " + Utils.formatTime(stopTime - postProcessStartTime));
     }
 
-    public static void postProcessBrandNamesForProducts(Connection dbConnection) throws SQLException {
+    public static void postProcessBrandNamesForProducts(Connection dbConnection, int csvLine) throws SQLException {
         System.out.println("\nPost processing...");
-        String sql = "SELECT p.product_id, cb.name FROM product p JOIN csv_brand cb ON p.id = cb.id_product";
+        String sql = "SELECT p.product_id, cb.name, cb.csv_line FROM product p JOIN csv_brand cb ON p.id = cb.id_product";
 
         try (PreparedStatement stmt = dbConnection.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             Map<String, Map<String, Integer>> productBrandFrequency = populateBrandFrequencyMap(rs);
-            printMostFrequentBrands(productBrandFrequency);
+            ResultSet rs2 = stmt.executeQuery();
+            Map<String, Integer> productBrandCsvLine = populateBrandCsvLine(rs2);
+            findAndLogBrandIssues(productBrandFrequency, productBrandCsvLine, dbConnection);
         }
+    }
+
+    private static Map<String, Integer> populateBrandCsvLine(ResultSet rs) throws SQLException {
+        Map<String, Integer> productBrandCsvLine = new HashMap<>();
+
+        while (rs.next()) {
+            String brandName = rs.getString("name");
+            int csvLine = rs.getInt("csv_line");
+
+            productBrandCsvLine.put(brandName, csvLine);
+        }
+        return productBrandCsvLine;
     }
 
     private static Map<String, Map<String, Integer>> populateBrandFrequencyMap(ResultSet rs) throws SQLException {
@@ -151,16 +166,20 @@ public class Ingestor
         return productBrandFrequency;
     }
 
-    private static void printMostFrequentBrands(Map<String, Map<String, Integer>> productBrandFrequency) {
+    private static void findAndLogBrandIssues(Map<String, Map<String, Integer>> productBrandFrequency,
+                                              Map<String, Integer>  productBrandCsvLine,
+                                              Connection dbConnection) throws SQLException {
         for (Map.Entry<String, Map<String, Integer>> entry : productBrandFrequency.entrySet()) {
             String productId = entry.getKey();
             Map<String, Integer> brandMap = entry.getValue();
 
             if (brandMap.size() > 1) {
                 String mostFrequentBrand = findMostFrequentBrand(brandMap);
+                insertWarning(dbConnection, productBrandCsvLine.get(mostFrequentBrand),
+                        "WARNING_MULTIPLE_BRAND_NAMES", WARNING_MULTIPLE_BRAND_NAMES + mostFrequentBrand);
                 System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
                         " - { " + brandMap.keySet() + " }");
-                checkBrandNameDistance(brandMap.keySet());
+                findBrandNameOutliers(brandMap.keySet(), productBrandCsvLine, dbConnection);
             }
         }
     }
@@ -172,9 +191,10 @@ public class Ingestor
                 .orElse(null);
     }
 
-    private static void checkBrandNameDistance(Set<String> brandNames) {
+    private static void findBrandNameOutliers(Set<String> brandNames, Map<String, Integer> productBrandCsvLine,
+                                              Connection dbConnection) throws SQLException {
         Map<String, Integer> similarityMap = calculateSimilarityMap(brandNames);
-        printOutliers(brandNames, similarityMap);
+        logBrandNameOutliers(brandNames, similarityMap, productBrandCsvLine, dbConnection);
     }
 
     private static Map<String, Integer> calculateSimilarityMap(Set<String> brandNames) {
@@ -192,9 +212,11 @@ public class Ingestor
         return similarityMap;
     }
 
-    private static void printOutliers(Set<String> brandNames, Map<String, Integer> similarityMap) {
+    private static void logBrandNameOutliers(Set<String> brandNames, Map<String, Integer> similarityMap,
+                                             Map<String, Integer> productBrandCsvLine, Connection dbConnection) throws SQLException {
         for (Map.Entry<String, Integer> entry : similarityMap.entrySet()) {
             if (entry.getValue() < 1) {
+                insertWarning(dbConnection, productBrandCsvLine.get(entry.getKey()), "WARNING_OUTLIER_BRAND_NAME", WARNING_OUTLIER_BRAND_NAME + entry.getKey());
                 System.out.println("- Found outlier: " + entry.getKey() + " - {" + brandNames + "}");
                 if (similarityMap.size() < 3) {
                     break;
@@ -232,7 +254,7 @@ public class Ingestor
         return set;
     }
 
-    private static void insertWarning(Connection dbConnection, int csvLine, String warning, String description) throws SQLException, IOException {
+    private static void insertWarning(Connection dbConnection, int csvLine, String warning, String description) throws SQLException {
         String sql = "INSERT INTO warnings (csv_line, warning, description) VALUES (?, ?, ?)";
         PreparedStatement stmt = dbConnection.prepareStatement(sql);
         stmt.setInt(1, csvLine);
