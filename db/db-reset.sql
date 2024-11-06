@@ -61,6 +61,7 @@ CREATE TABLE localized_meta (
 CREATE TABLE warnings (
     id SERIAL PRIMARY KEY,
     csv_line int,
+    warning TEXT,
     description TEXT
 );
 

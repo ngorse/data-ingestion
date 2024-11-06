@@ -12,12 +12,16 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import org.apache.commons.text.similarity.JaroWinklerSimilarity;
+import org.apache.commons.text.similarity.JaccardSimilarity;
 
 public class Ingestor
 {
     final static String[] LOCALES = {"zh-CN", "en", "fr", "de", "it", "ja", "ko", "pt", "ru", "es"};
     final static LanguageDetector detector = initializeLanguageDetector();
-    final static String WARNING_EMPTY_FIELD = "Line dropped: Empty field";
+    final static String WARNING_EMPTY_FIELD = "Line dropped: No content for field ";
+    final static String WARNING_INVALID_BRAND = "Line dropped: Brand name too different from others";
+    final static double SIMILARITY_THRESHOLD=0.8;
 
     public static void main(String[] args) {
         String dbUrl = System.getenv("INGESTOR_DB_URL");
@@ -75,11 +79,13 @@ public class Ingestor
             while ((line = csvReader.readNext()) != null) {
                 csvLine++;
 
-                if (hasEmptyField(line)) {
-                    insertWarning(dbConnection, csvLine, WARNING_EMPTY_FIELD);
+                int emptyField = hasEmptyField(line);
+                if (emptyField > 0) {
+                    insertWarning(dbConnection, csvLine, "WARNING_EMPTY_FIELD", WARNING_EMPTY_FIELD + emptyField);
                     linesDropped++;
                     continue;
                 }
+
                 linesIngested++;
 
                 int idProduct = insertProductAndBrand(dbConnection, productMap, brandMap, csvLine,
@@ -105,7 +111,7 @@ public class Ingestor
             }
 
             postProcessStartTime = System.currentTimeMillis();
-            findMostFrequentBrandNameForProducts(dbConnection);
+            postProcessBrandNamesForProducts(dbConnection);
             stopTime = System.currentTimeMillis();
 
         } catch (IOException | SQLException | CsvException e) {
@@ -113,15 +119,15 @@ public class Ingestor
             e.printStackTrace();
         }
 
-        System.out.println("\nTotal lines ingested: " + linesIngested);
+        System.out.println("Total lines ingested: " + linesIngested);
         System.out.println("Total lines dropped: " + linesDropped);
         System.out.println("Total elapsed time : " + Utils.formatTime(stopTime - startTime));
         System.out.println("    Ingestion      : " + Utils.formatTime(postProcessStartTime - startTime));
         System.out.println("    Post-process   : " + Utils.formatTime(stopTime - postProcessStartTime));
     }
 
-    public static void findMostFrequentBrandNameForProducts(Connection dbConnection) throws SQLException {
-        // Query to retrieve all product IDs and their associated csv_brand names
+    public static void postProcessBrandNamesForProducts(Connection dbConnection) throws SQLException {
+        System.out.println("\nPost processing...");
         String sql = "SELECT p.product_id, cb.name FROM product p JOIN csv_brand cb ON p.id = cb.id_product";
 
         try (PreparedStatement stmt = dbConnection.prepareStatement(sql);
@@ -143,9 +149,28 @@ public class Ingestor
 
             // Iterate through each product and determine the most frequent brand name
             for (String productId : productBrandFrequency.keySet()) {
-                String mostFrequentBrand = findMostFrequentBrand(productBrandFrequency.get(productId));
-                System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
-                        "  { " + productBrandFrequency.get(productId).keySet() + " }");
+                Map<String, Integer> brandMap = productBrandFrequency.get(productId);
+                if (brandMap.keySet().size() > 1) {
+                    String mostFrequentBrand = findMostFrequentBrand(brandMap);
+                    System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
+                            "  { " + brandMap.keySet() + " }");
+                    checkBrandNameDistance(brandMap.keySet());
+                }
+            }
+        }
+    }
+
+    private static void checkBrandNameDistance(Set<String> stringIntegerMap) {
+        for(String s1: stringIntegerMap) {
+            double similarity = 0;
+            for (String s2: stringIntegerMap) {
+                if (s1.equalsIgnoreCase(s2)) {
+                    continue;
+                }
+                similarity = Math.max(similarity, computeSimilarity(s1, s2));
+            }
+            if (similarity < SIMILARITY_THRESHOLD) {
+                System.out.println("Found outlier: " + s1 + " - {" + stringIntegerMap + "}");
             }
         }
     }
@@ -170,21 +195,51 @@ public class Ingestor
         return mostFrequentBrand;
     }
 
-    private static void insertWarning(Connection dbConnection, int csvLine, String description) throws SQLException, IOException {
-        String sql = "INSERT INTO warnings (csv_line, description) VALUES (?, ?)";
+    private static double computeSimilarity(String s1, String s2) {
+        String ss1 = s1.toLowerCase().replaceAll("[^a-z0-9]", "").trim();
+        String ss2 = s2.toLowerCase().replaceAll("[^a-z0-9]", "").trim();
+
+        if (isSubset(s1, s2) || isSubset(s2, s1)) {
+            return 1;
+        }
+        JaroWinklerSimilarity jaroWinkler = new JaroWinklerSimilarity();
+        double similarity1 = jaroWinkler.apply(ss1, ss2);
+        JaccardSimilarity jaccard = new JaccardSimilarity();
+        double similarity2 = jaccard.apply(ss2, ss1);
+
+        return Math.max(similarity1, similarity2);
+    }
+
+    public static boolean isSubset(String s1, String s2) {
+        Set<Character> set1 = toSet(s1.toLowerCase().replaceAll("[^a-z0-9]", "").trim());
+        Set<Character> set2 = toSet(s2.toLowerCase().replaceAll("[^a-z0-9]", "").trim());
+        return set2.containsAll(set1);
+    }
+
+    private static Set<Character> toSet(String str) {
+        Set<Character> set = new HashSet<>();
+        for (char c : str.toCharArray()) {
+            set.add(c);
+        }
+        return set;
+    }
+
+    private static void insertWarning(Connection dbConnection, int csvLine, String warning, String description) throws SQLException, IOException {
+        String sql = "INSERT INTO warnings (csv_line, warning, description) VALUES (?, ?, ?)";
         PreparedStatement stmt = dbConnection.prepareStatement(sql);
         stmt.setInt(1, csvLine);
-        stmt.setString(2, description);
+        stmt.setString(2, warning);
+        stmt.setString(3, description);
         stmt.executeUpdate();
     }
 
-    private static boolean hasEmptyField(String[] line) {
-        for (String str : line) {
-            if (str == null || str.isEmpty()) {
-                return true;
+    private static int hasEmptyField(String[] line) {
+        for (int i = 0; i < line.length; i++) {
+            if (line[i] == null || line[i].isEmpty()) {
+                return (i+1);
             }
         }
-        return false;
+        return -1;
     }
 
     private static int insertProductAndBrand(Connection dbConnection, Map<String, Integer> productMap,

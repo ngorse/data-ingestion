@@ -40,7 +40,7 @@ public class Utils
         if (input == null || input.isEmpty()) {
             return input; // Return as is if input is null or empty
         }
-        String lowerCaseString = input.toLowerCase();
+        String lowerCaseString = input.toLowerCase().trim();
         return Character.toUpperCase(lowerCaseString.charAt(0)) + lowerCaseString.substring(1);
     }
 
