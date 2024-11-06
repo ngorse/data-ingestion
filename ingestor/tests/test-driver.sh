@@ -15,14 +15,15 @@ function run_command()
 
 function dump_sql()
 {
-    DB_NAME="inventory"
-    USER="nico"
-    tables=$(psql -U "${USER}" -d "${DB_NAME}" -t -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
+    DB_NAME=inventory
+    HOST=localhost
+    USER=ingestor
+    tables=$(psql -h localhost -p 5432 -U "${USER}" -d "${DB_NAME}" -t -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
 
     for table in $tables; do
       if [[ -n "$table" ]]; then
         echo "Table: $table"
-        psql -U "${USER}" -d "${DB_NAME}" -c "\copy ${table} TO STDOUT CSV HEADER"
+        psql -h localhost -U "${USER}" -d "${DB_NAME}" -c "\copy ${table} TO STDOUT CSV HEADER"
         echo ""
       fi
     done > ${OUTPUT}.DB

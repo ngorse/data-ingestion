@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:17.0
+    container_name: inventory_postgres_db
+    environment:
+      POSTGRES_USER: ingestor
+      # Yes, this is totally insecure, yet makes it simpler for this exercise
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: inventory
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
