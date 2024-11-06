@@ -37,7 +37,7 @@ OUTPUT=.TMP.${TEST}.csv.DUMP
 echo "${TEST} - ingesting and dumping ${INPUT}"
 
 run_command ./bin/compile.sh
-run_command ../db/db-reset.sh
+run_command ./bin/db-reset.sh
 run_command ./bin/ingest.sh ${INPUT}
 
 run_command ./bin/dump.sh ${OUTPUT}.raw

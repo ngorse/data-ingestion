@@ -4,12 +4,33 @@ services:
     container_name: inventory_postgres_db
     environment:
       POSTGRES_USER: ingestor
-      # Yes, this is totally insecure, yet makes it simpler for this exercise
       POSTGRES_HOST_AUTH_METHOD: trust
+      #POSTGRES_PASSWORD: tupeuxpastest
       POSTGRES_DB: inventory
     ports:
       - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
     restart: unless-stopped
+    networks:
+      - inventory_network
 
-volumes:
-  postgres_data:
+  ingestor:
+    image: ingestor
+    build: .
+    depends_on:
+      - db
+    volumes:
+      - ./data/input.csv:/app/input.csv
+    networks:
+      - inventory_network
+    environment:
+      INGESTOR_DB_URL: "jdbc:postgresql://db:5432/inventory?charSet=UTF-8"
+      INGESTOR_DB_USER: ingestor
+      POSTGRES_HOST_AUTH_METHOD: trust
+      #POSTGRES_PASSWORD: tupeuxpastest
+      INGESTOR_DB_AUTOCOMMITL: false
+
+networks:
+  inventory_network:
+    driver: bridge

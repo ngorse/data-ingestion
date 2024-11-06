@@ -23,6 +23,7 @@ public class Ingestor
     final static String WARNING_OUTLIER_BRAND_NAME = "Outlier brand - Too different from other names: ";
     final static String WARNING_MULTIPLE_BRAND_NAMES = "Multiple brand names - Chosen name: ";
     final static double SIMILARITY_THRESHOLD=0.8;
+    static int warningsCount = 0;
 
     public static void main(String[] args) {
         String dbUrl = System.getenv("INGESTOR_DB_URL");
@@ -33,21 +34,35 @@ public class Ingestor
 
         Utils.exitOnInvalidCSVFilePath(csvFilePath);
 
-        try (Connection dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword)) {
-            dbConnection.setAutoCommit(autoCommit);
+        int remainingAttemptsLeft=10;
+        while (remainingAttemptsLeft > 0) {
+            remainingAttemptsLeft--;
+            try (Connection dbConnection = DriverManager.getConnection(dbUrl, dbUser, dbPassword)) {
+                dbConnection.setAutoCommit(autoCommit);
 
-            ingestCSV(csvFilePath, dbConnection);
+                ingestCSV(csvFilePath, dbConnection);
+                remainingAttemptsLeft=-1;
 
-            if (!autoCommit) {
-                dbConnection.commit();
+                if (!autoCommit) {
+                    dbConnection.commit();
+                }
+            } catch (SQLException e) {
+                System.err.println("Database error: " + e.getMessage());
+                if (remainingAttemptsLeft > 0) {
+                    System.out.println("DB system may not be ready yet, retrying in 2s.");
+                }
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException ex) {
+                    // Ignore
+                }
+            } catch (Exception e) {
+                System.err.println("An error occurred: " + e.getMessage());
+                e.printStackTrace();
             }
-        } catch (SQLException e) {
-            System.err.println("Database error: " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("An error occurred: " + e.getMessage());
-            e.printStackTrace();
         }
     }
+
 
     private static LanguageDetector initializeLanguageDetector()
     {
@@ -77,6 +92,9 @@ public class Ingestor
             }
 
             String[] line;
+            System.out.print("\nIngesting CSV...");
+            System.out.flush();
+
             while ((line = csvReader.readNext()) != null) {
                 csvLine++;
 
@@ -108,6 +126,7 @@ public class Ingestor
 
                 if (linesIngested % 1000 == 0) {
                     System.out.print("\rIngested lines: " + Utils.DECIMAL_FORMAT.format(linesIngested) + "+");
+                    System.out.flush();
                 }
             }
 
@@ -120,9 +139,10 @@ public class Ingestor
             e.printStackTrace();
         }
 
-        System.out.println("Total lines ingested: " + linesIngested);
+        System.out.println("\nTotal lines ingested: " + linesIngested);
         System.out.println("Total lines dropped: " + linesDropped);
-        System.out.println("Total elapsed time : " + Utils.formatTime(stopTime - startTime));
+        System.out.println("Number of warnings : " + warningsCount);
+        System.out.println("\nTotal elapsed time : " + Utils.formatTime(stopTime - startTime));
         System.out.println("    Ingestion      : " + Utils.formatTime(postProcessStartTime - startTime));
         System.out.println("    Post-process   : " + Utils.formatTime(stopTime - postProcessStartTime));
     }
@@ -177,8 +197,6 @@ public class Ingestor
                 String mostFrequentBrand = findMostFrequentBrand(brandMap);
                 insertWarning(dbConnection, productBrandCsvLine.get(mostFrequentBrand),
                         "WARNING_MULTIPLE_BRAND_NAMES", WARNING_MULTIPLE_BRAND_NAMES + mostFrequentBrand);
-                System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
-                        " - { " + brandMap.keySet() + " }");
                 findBrandNameOutliers(brandMap.keySet(), productBrandCsvLine, dbConnection);
             }
         }
@@ -217,7 +235,6 @@ public class Ingestor
         for (Map.Entry<String, Integer> entry : similarityMap.entrySet()) {
             if (entry.getValue() < 1) {
                 insertWarning(dbConnection, productBrandCsvLine.get(entry.getKey()), "WARNING_OUTLIER_BRAND_NAME", WARNING_OUTLIER_BRAND_NAME + entry.getKey());
-                System.out.println("- Found outlier: " + entry.getKey() + " - {" + brandNames + "}");
                 if (similarityMap.size() < 3) {
                     break;
                 }
@@ -261,6 +278,7 @@ public class Ingestor
         stmt.setString(2, warning);
         stmt.setString(3, description);
         stmt.executeUpdate();
+        warningsCount++;
     }
 
     private static int hasEmptyField(String[] line) {
