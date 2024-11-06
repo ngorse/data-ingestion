@@ -13,28 +13,19 @@ function run_command()
     fi
 }
 
-function diff_results()
-{
-    cat ${INPUT} | sed -e 's/"//g' | tr '[:upper:]' '[:lower:]' | grep -v ,, | sort > ${BASE}.i
-    cat ${OUTPUT} | sed -e 's/"//g' | tr '[:upper:]' '[:lower:]' | sort > ${BASE}.o
-    diff ${BASE}.i ${BASE}.o
-    result=${?}
-    return ${result}
-}
-
 TEST=${1}
 INPUT=${2}
-BASE=.$RANDOM
-OUTPUT=${BASE}.output.csv
+OUTPUT=.TMP.${TEST}.csv.DUMP
 
 echo "${TEST} - ingesting and dumping ${INPUT}"
 
 run_command ./bin/compile.sh
 run_command ../db/db-reset.sh
 run_command ./bin/ingest.sh ${INPUT}
-run_command ./bin/dump.sh ${OUTPUT}
-run_command diff_results
-run_command \rm ${BASE}.i ${BASE}.o ${OUTPUT}
+run_command ./bin/dump.sh ${OUTPUT}.raw
+sort -r ${OUTPUT}.raw > ${OUTPUT}
+run_command diff ${INPUT}.REF-DUMP ${OUTPUT}
+run_command \rm ${OUTPUT}.raw ${OUTPUT}
 
 echo -e "    \033[0;32mSUCCESS\033[0m\n"
 
