@@ -59,6 +59,8 @@ public class Ingestor
         Map<String, Integer> variantMap = new HashMap<>();
         Map<String, Integer> brandMap = new HashMap<>();
         long startTime = System.currentTimeMillis();
+        long postProcessStartTime = System.currentTimeMillis();
+        long stopTime = System.currentTimeMillis();
 
         int linesIngested = 0;
         int linesDropped = 0;
@@ -101,14 +103,71 @@ public class Ingestor
                     System.out.print("\rIngested lines: " + Utils.DECIMAL_FORMAT.format(linesIngested) + "+");
                 }
             }
+
+            postProcessStartTime = System.currentTimeMillis();
+            findMostFrequentBrandNameForProducts(dbConnection);
+            stopTime = System.currentTimeMillis();
+
         } catch (IOException | SQLException | CsvException e) {
             System.out.println("Error on csvLine: " + csvLine);
             e.printStackTrace();
         }
 
         System.out.println("\nTotal lines ingested: " + linesIngested);
-        System.out.println("Total lines dropped : " + linesDropped);
-        System.out.println("Total elapsed time  : " + Utils.formatTime(System.currentTimeMillis() - startTime));
+        System.out.println("Total lines dropped: " + linesDropped);
+        System.out.println("Total elapsed time : " + Utils.formatTime(stopTime - startTime));
+        System.out.println("    Ingestion      : " + Utils.formatTime(postProcessStartTime - startTime));
+        System.out.println("    Post-process   : " + Utils.formatTime(stopTime - postProcessStartTime));
+    }
+
+    public static void findMostFrequentBrandNameForProducts(Connection dbConnection) throws SQLException {
+        // Query to retrieve all product IDs and their associated csv_brand names
+        String sql = "SELECT p.product_id, cb.name FROM product p JOIN csv_brand cb ON p.id = cb.id_product";
+
+        try (PreparedStatement stmt = dbConnection.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            // Map to store the frequency of each brand name per product
+            Map<String, Map<String, Integer>> productBrandFrequency = new HashMap<>();
+
+            // Loop through each result and count occurrences of each brand name for each product
+            while (rs.next()) {
+                String productId = rs.getString("product_id");
+                String brandName = rs.getString("name");
+
+                // Initialize frequency map for the product if not already present
+                productBrandFrequency
+                        .computeIfAbsent(productId, k -> new HashMap<>())
+                        .merge(brandName, 1, Integer::sum);
+            }
+
+            // Iterate through each product and determine the most frequent brand name
+            for (String productId : productBrandFrequency.keySet()) {
+                String mostFrequentBrand = findMostFrequentBrand(productBrandFrequency.get(productId));
+                System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
+                        "  { " + productBrandFrequency.get(productId).keySet() + " }");
+            }
+        }
+    }
+
+    /**
+     * Helper method to find the most frequent brand name from a map of brand name frequencies.
+     *
+     * @param brandFrequencyMap a map where keys are brand names and values are their frequency
+     * @return the most frequent brand name
+     */
+    private static String findMostFrequentBrand(Map<String, Integer> brandFrequencyMap) {
+        String mostFrequentBrand = null;
+        int maxFrequency = 0;
+
+        for (Map.Entry<String, Integer> entry : brandFrequencyMap.entrySet()) {
+            if (entry.getValue() > maxFrequency) {
+                maxFrequency = entry.getValue();
+                mostFrequentBrand = entry.getKey();
+            }
+        }
+
+        return mostFrequentBrand;
     }
 
     private static void insertWarning(Connection dbConnection, int csvLine, String description) throws SQLException, IOException {
