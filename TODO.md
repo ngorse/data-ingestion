@@ -1,26 +1,26 @@
 
 [X] data loading
 
-[x] data cleaning
-    [x] inconsistencies
-    [x] missing values
-    [x] invalid values
-    [x] exceptional cases
-    [x] data validation
-    [x] cleaning -- standardize brand column: ensure special characters are stored (and can be retrieved) properly. try to find similar values and group them under one canonical name. E.g. Alexander McQueen and Alexander McQueen Kids could be grouped. Similarly, ADIDAS and Adidas are different spellings of the same brand, etc.
-    [x] populate warnings table
+[X] data cleaning
+    [X] inconsistencies
+    [X] missing values
+    [X] invalid values
+    [X] exceptional cases
+    [X] data validation
+    [X] cleaning -- standardize brand column: ensure special characters are stored (and can be retrieved) properly. try to find similar values and group them under one canonical name. E.g. Alexander McQueen and Alexander McQueen Kids could be grouped. Similarly, ADIDAS and Adidas are different spellings of the same brand, etc.
+    [X] populate warnings table
 
 [X] data persistence
 
 [X] database setup
 
-[x] java application
+[X] java application
 
 [X] sql schema
 
-[ ] dockerized environment
-    [ ] docker
-    [ ] install and run scripts
+[X] dockerized environment
+    [X] docker
+    [X] install and run scripts
 
 [ ] instructions
     [ ] README.md
@@ -28,7 +28,7 @@
 
 [X] artifacts
 
-[x] e2e tests
-    [x] tests
-    [x] automation
+[X] e2e tests
+    [X] tests
+    [X] automation
 
