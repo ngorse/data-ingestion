@@ -153,7 +153,7 @@ public class Ingestor
                 if (brandMap.keySet().size() > 1) {
                     String mostFrequentBrand = findMostFrequentBrand(brandMap);
                     System.out.println("Product ID: " + productId + " - Most Frequent Brand Name: " + mostFrequentBrand +
-                            "  { " + brandMap.keySet() + " }");
+                            " - { " + brandMap.keySet() + " }");
                     checkBrandNameDistance(brandMap.keySet());
                 }
             }
@@ -161,26 +161,28 @@ public class Ingestor
     }
 
     private static void checkBrandNameDistance(Set<String> stringIntegerMap) {
+        Map<String, Integer> similarityMap = new HashMap<>();
         for(String s1: stringIntegerMap) {
-            double similarity = 0;
-            for (String s2: stringIntegerMap) {
+            similarityMap.put(s1, 0);
+            for (String s2 : stringIntegerMap) {
                 if (s1.equalsIgnoreCase(s2)) {
                     continue;
                 }
-                similarity = Math.max(similarity, computeSimilarity(s1, s2));
+                if (computeSimilarity(s1, s2) >= SIMILARITY_THRESHOLD) {
+                    similarityMap.put(s1, similarityMap.getOrDefault(s1, 0) + 1);
+                }
             }
-            if (similarity < SIMILARITY_THRESHOLD) {
-                System.out.println("Found outlier: " + s1 + " - {" + stringIntegerMap + "}");
+        }
+        for (Map.Entry<String, Integer> entry : similarityMap.entrySet()) {
+            if (entry.getValue() < 1) {
+                System.out.println("- Found outlier: " + entry.getKey() + " - {" + stringIntegerMap + "}");
+                if (similarityMap.size() < 3) {
+                    break;
+                }
             }
         }
     }
 
-    /**
-     * Helper method to find the most frequent brand name from a map of brand name frequencies.
-     *
-     * @param brandFrequencyMap a map where keys are brand names and values are their frequency
-     * @return the most frequent brand name
-     */
     private static String findMostFrequentBrand(Map<String, Integer> brandFrequencyMap) {
         String mostFrequentBrand = null;
         int maxFrequency = 0;
