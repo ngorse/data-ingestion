@@ -1,0 +1,125 @@
+=> Is the program expected to be initiated by the user to process a data file and fill up the database, or should we consider this is a permanent running process that could receive data at any time.
+
+There are two options we can imagine here, and both are valid:
+	- Batch processing - the file is read and parsed once the program is started (either by the user or by a cron job)
+	- Ready for stream-like processing - the program runs continuously, and if there is new data (e.g. a new file in the input directory), it processes the data
+
+You can choose whichever option is easier to implement. We're not expecting you to create a full-fledged production-ready product pipeline component. We are interested in your way of thinking.
+
+ 
+=> In case of a new file, I assume the data should be appended to the current database. Do you confirm?
+
+Can be either an overwrite or append. 
+ 
+
+=> I assume the database should be persistent, i.e. not reinitialised when we restart the docker. Can you please confirm?
+
+In the real world, this is correct. But for now, it's ok to lose the data if you restart the docker - unless persistency is really easy to implement.
+
+ 
+=> How should the raw datafile be passed to the java program?
+Is it ok to have it mounted within the docker and have the program read the file when it starts? Or, do we want to pass it through some API?
+
+This is, again, up to you. Your solution can depend on how you are treating the first question. If you choose batch processing, it's ok to pass the raw file as an argument or have it mounted at a predefined location in the docker. In stream-like processing, you need to implement an API to pass the file to the program and initiate processing. 
+ 
+
+=> Is it OK to assume we can load the whole file into memory for processing, or should we rather load the data row by row, as we may have much larger files that wouldn't fit into memory?
+
+Great question. In general, your data files will likely not fit into the memory, so we would recommend using the row-by-row approach
+
+--------------
+
+1. product_type
+
+We may have 2 rows or more with the same variant_id value and a different product_type value. We have identified 2 possible cases:
+
+(a) Localization
+
+example:
+row        variant_id     product_type
+2107843    14924756-42    Jewellery > Rings
+2349353    14924756-42    Bijoux > Bagues
+
+(b) Different product_type for the same language
+
+example:
+row        variant_id     product_type
+1272828	   12620014-17 	  Jewellery > Earrings
+1988493	   12620014-17	  Fine Jewellery > Fine Earrings
+
+Case (a) looks perfectly normal to me. Case (b) is problematic as it prevents us from adding to to localized_meta and therefore.
+
+Would it be OK to consider case (b) as being an issue, flag it, and not add it to the database?
+
+- 
+
+Yes, these scenarios can certainly happen. Detecting which is the “best” version is pretty tricky and not easy to implement. You can choose among the following strategies:
+- overwrite the variant’s data with the last loaded product_type value
+- transform the product_type field to an array[string] and store all values
+- flag these as conflicting rows and drop/log all these rows so that we can see how often this issue occurs
+
+The point of this exercise is not to provide a perfect solution to the problems but rather to understand your thinking.
+
+--------------
+
+2. brand
+
+Two rows with the same product_id may have different brand
+Is it reasonable to assume we could handle the merging automatically using a librairie like org.apache.commons.text.similarity.FuzzyScore?
+
+- 
+
+This is, again, a difficult one. Brand names can be very similar, but they could still be different brands. So, an automatic correction using any similarity algorithm can produce unacceptable level of false positives or false negatives. For the purposes of this solution, you might want to keep the first version of the brand name, or last one, or the most frequent one for the product - up to you. It is perhaps most important to document your choice and why you chose that.
+
+--------------
+
+3. size_label
+
+Two rows with the same variant_id may have different size_label
+
+The example below is clearly a localization case and is OK
+row       variant_id     size_label
+337840    17659877-17    40厘米
+618246    17659877-17    40 cm
+
+This other example may or may not be a localization case. Is it reasonable to consider it as it, or should this be fixed at ingestion time?
+row       variant_id     size_label    product_type
+150573    17482131-20    6 US          Kleidung > Kleider > Tageskleider
+208845    17482131-20    4 US          Clothing > Dresses > Day Dresses
+
+-
+
+Great catch. If you can think of a good off-the-shelf method to detect the English versions, then pick those. Otherwise, chose a shortcut (first-in, last-in, etc.) and tell us why you did that. For bonus points, you can tell us what direction you would take if this was to be solved in the long run.
+
+--------------
+
+4. age_group:
+
+In some cases, the age group varies although the product type is the same
+row        variant_id     age_group    product_type
+3879       13221865-19    Kids         Boys Shoes > Boys Trainers
+2019990    13221865-19    Adult        Boys Shoes > Boys Trainers
+
+I believe this is clearly not a localization and should be flagged, and possibly fixed automatically. Do you confirm it is an error in the data?
+
+-
+
+This is clearly a data issue (it does happen). Yes, flagging and quantifying is what one would do in this case.
+
+--------------
+
+5. gender:
+
+I believe the example below is clearly not a localization and should be flagged, and possibly fixed automatically. 
+
+row        variant_id     gender    product_type
+1272828    12620014-17    Female    Jewellery > Earrings
+1988493    12620014-17    Unisex    Fine Jewellery > Fine Earrings
+
+However, I also believe it may be that way on purpose because some variants could appear under different product_type. 
+
+Do you confirm this could be the case, of should this be considered as an error in the data?
+
+-
+
+Yes, this is clearly a data issue. Yes, flagging and quantifying is what one would do in this case.
