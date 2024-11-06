@@ -47,7 +47,11 @@ You may press `Ctrl-C` to stop the system.
 # Data Operations
 
 ### Database Schema
+
+The SQL script to initialize the database can be found in `bin/initdb/db_reset.sql`.
+
 ![](docs/schema.png)
+
 
 ### Data Persistency
 
