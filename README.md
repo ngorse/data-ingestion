@@ -131,7 +131,7 @@ For more:
 - We chose maven to manage the java dependencies and do the packaging.
 - We chose not to develop unit tests at this time as it is a proof of concept.
 
-### Unavailable commands
+### Unavailable Commands
 
 - We have developed a set of scripts for end-to-end testing, those won't work unless you have maven installed and the proper data files (which could be provided if requested).
 
@@ -146,14 +146,14 @@ This section elaborates on the data validation and cleaning that is performed by
 - Words are normalized with the first letter being uppercase and the remainings lowercase.
 - White spaces are trimmed.
 
-### Discarding issing Fields
+### Discarding Missing Fields
 
 CSV lines with missing fields are not ingested and an entry is added to the *warnings* table, e.g:
 
 ```bash
  id | csv_line |           warning            |                  description                  
 ----+----------+------------------------------+-----------------------------------------------
- 34 |        9 | WARNING\_EMPTY_FIELD          | Line dropped - No content for field 7
+ 34 |        9 | WARNING_EMPTY_FIELD          | Line dropped - No content for field 7
 ```
 
 ### Determining the Locale
@@ -171,14 +171,14 @@ Different CSV rows may refer to the same *product\_id* with different values for
 
 The resolution is two-fold:
 
-1. for each given *product\_id*, We compute the frequency of appearance of each *brand* name and elect the most frequent one as the representative and update the *brand* table accordingly. 
+1. for each given *product\_id*, we compute the frequency of appearance of each *brand* name and elect the most frequent one as the representative and update the *brand* table accordingly. 
 
 2. when more than 1 *brand* name is encountered for the same product, we run string similarity computation (subset, JaroWinkler, Jaccard) on the names and we flag *brand* names which are under 80% similar to the other ones.
 
 In both cases, we still ingest the line and an entry is added to the *warnings* table, e.g:
 
 ```bash
- id | csv\_line |           warning            |                  description                  
+ id | csv_line |           warning            |                  description                  
 ----+----------+------------------------------+-----------------------------------------------
   7 |       34 | WARNING_MULTIPLE_BRAND_NAMES | Multiple brand names - Chosen name: Ami paris
   8 |       21 | WARNING_OUTLIER_BRAND_NAME   | Outlier brand - Too different from other names: Capucine
@@ -198,9 +198,7 @@ row        variant_id     gender    product_type
 
 Such collisions are resolved naturally by storing the 3 possible genders for each variant using a boolean. That way we leave the possibility that a variant may apply to different genders depending on the culture.
 
-### Product type
-
- product\_type
+### Product Type
 
 We may have 2 rows or more with the same variant\_id value and a different product\_type value. We have identified 2 possible cases:
 
